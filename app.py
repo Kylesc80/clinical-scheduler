@@ -2,102 +2,122 @@ import streamlit as st
 from datetime import datetime, timedelta
 import pandas as pd
 
-# Page Config
-st.set_page_config(page_title="Clinical Scheduler", layout="centered")
+# Page Configuration
+st.set_page_config(page_title="Clinical Scheduler", layout="wide")
 
 st.title("🏥 Clinical Schedule Optimizer")
 st.markdown("""
-This tool generates an optimized grid-based schedule for hospital optometry, 
-aligning productivity with **SullivanCotter** benchmarks.
+This tool generates an optimized grid-based schedule for hospital-based optometry, 
+balancing clinical flow with **SullivanCotter** productivity benchmarks.
 """)
 
 # --- SIDEBAR: SCHEDULING PARAMETERS ---
-st.sidebar.header("1. Time & Grid")
-start_time = st.sidebar.time_input("Start Time", value=datetime.strptime("08:00", "%H:%M"))
-end_time = st.sidebar.time_input("End Time", value=datetime.strptime("17:00", "%H:%M"))
+st.sidebar.header("1. Session Timing")
+start_time = st.sidebar.time_input("Clinic Start", value=datetime.strptime("08:00", "%H:%M"))
+lunch_start_time = st.sidebar.time_input("Lunch Start", value=datetime.strptime("12:00", "%H:%M"))
 lunch_min = st.sidebar.number_input("Lunch Duration (mins)", value=60, step=15)
-grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", [10, 15, 20, 30], index=2)
+end_time = st.sidebar.time_input("Clinic End", value=datetime.strptime("17:00", "%H:%M"))
 
-st.sidebar.header("2. Buffer/Complex Slots")
-st.sidebar.info("These slots are 2x your base grid length for charting or complex cases.")
+st.sidebar.header("2. Grid & Buffers")
+grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", [10, 15, 20, 30], index=2)
+st.sidebar.info("Buffers are 2x your grid length for complex cases or charting.")
 am_buffers = st.sidebar.slider("Morning Buffers", 0, 5, 3)
 pm_buffers = st.sidebar.slider("Afternoon Buffers", 0, 5, 2)
 
-# --- CALCULATIONS ---
-start_dt = datetime.combine(datetime.today(), start_time)
-end_dt = datetime.combine(datetime.today(), end_time)
-total_day_min = (end_dt - start_dt).total_seconds() / 60
-available_clinical_min = total_day_min - lunch_min
-
-# Calculate number of base slots available
-total_potential_slots = int(available_clinical_min // grid_inc)
-
-# --- TEMPLATE GENERATOR ---
-schedule_data = []
-curr = start_dt
-
-def build_session(slot_count, buffer_limit):
-    global curr
-    buffers_placed = 0
-    # Distribute buffers evenly across the session slots
-    spacing = max(1, slot_count // (buffer_limit + 1)) if buffer_limit > 0 else 99
+# --- HELPER FUNCTION: SESSION GENERATOR ---
+def generate_session_slots(session_start, session_end, buffer_limit, grid):
+    session_data = []
+    curr = session_start
+    total_session_min = (session_end - session_start).total_seconds() / 60
     
-    for i in range(1, slot_count + 1):
-        is_buffer = False
-        if buffers_placed < buffer_limit and i % spacing == 0:
-            is_buffer = True
-            buffers_placed += 1
-            
-        duration = grid_inc * 2 if is_buffer else grid_inc
-        label = "🟢 Standard Exam" if not is_buffer else "🟠 Complex / Catch-up"
+    # Estimate total slots available in this window
+    potential_slots = int(total_session_min // grid)
+    
+    if potential_slots <= 0:
+        return []
+
+    # Distribute buffers evenly
+    buffers_placed = 0
+    spacing = max(1, potential_slots // (buffer_limit + 1)) if buffer_limit > 0 else 99
+    
+    for i in range(1, potential_slots + 1):
+        is_buffer = (buffers_placed < buffer_limit and i % spacing == 0)
+        duration = grid * 2 if is_buffer else grid
         
-        # Prevent overflowing past end time
-        if curr + timedelta(minutes=duration) > end_dt + timedelta(minutes=1):
+        # Check if this slot fits within the session time
+        if curr + timedelta(minutes=duration) > session_end + timedelta(minutes=1):
             break
             
-        schedule_data.append({
+        label = "🟠 Complex / Catch-up" if is_buffer else "🟢 Standard Exam"
+        session_data.append({
             "Start Time": curr.strftime("%I:%M %p"),
             "Type": label,
-            "Duration": f"{duration} min"
+            "Duration": duration  # Keep as int for math, format for display later
         })
         curr += timedelta(minutes=duration)
+        if is_buffer: buffers_placed += 1
+            
+    return session_data
 
-# Divide slots roughly in half for AM/PM
-am_slots_est = total_potential_slots // 2
+# --- DATA PROCESSING ---
+clinic_start_dt = datetime.combine(datetime.today(), start_time)
+lunch_start_dt = datetime.combine(datetime.today(), lunch_start_time)
+lunch_end_dt = lunch_start_dt + timedelta(minutes=lunch_min)
+clinic_end_dt = datetime.combine(datetime.today(), end_time)
 
-st.subheader("Interactive Schedule Template")
+# Generate morning and afternoon sessions
+am_schedule = generate_session_slots(clinic_start_dt, lunch_start_dt, am_buffers, grid_inc)
+pm_schedule = generate_session_slots(lunch_end_dt, clinic_end_dt, pm_buffers, grid_inc)
 
-# AM Session
-build_session(am_slots_est, am_buffers)
+# Format for display
+display_list = []
+for item in am_schedule:
+    display_list.append({"Start Time": item["Start Time"], "Type": item["Type"], "Duration": f"{item['Duration']} min"})
 
-# Lunch
-schedule_data.append({"Start Time": "---", "Type": "🍴 LUNCH BREAK", "Duration": f"{lunch_min} min"})
-curr += timedelta(minutes=lunch_min)
+display_list.append({"Start Time": lunch_start_time.strftime("%I:%M %p"), "Type": "🍴 LUNCH BREAK", "Duration": f"{lunch_min} min"})
 
-# PM Session
-pm_slots_est = total_potential_slots - am_slots_est
-build_session(pm_slots_est, pm_buffers)
+for item in pm_schedule:
+    display_list.append({"Start Time": item["Start Time"], "Type": item["Type"], "Duration": f"{item['Duration']} min"})
 
-# Display Table
-df = pd.DataFrame(schedule_data)
-st.table(df)
+# --- OUTPUT SECTION ---
+st.subheader("Optimized Schedule Template")
+df_display = pd.DataFrame(display_list)
+st.table(df_display)
 
-# --- BENCHMARKING ---
+# --- METRICS & BENCHMARKING ---
 st.divider()
-daily_pts = len([x for x in schedule_data if "Exam" in x['Type'] or "Complex" in x['Type']])
+patient_slots = am_schedule + pm_schedule
+daily_pts = len(patient_slots)
 
-col1, col2 = st.columns(2)
-with col1:
+if daily_pts > 0:
+    total_clinical_mins = sum([x['Duration'] for x in patient_slots])
+    avg_duration = total_clinical_mins / daily_pts
+else:
+    avg_duration = 0
+
+m1, m2, m3 = st.columns(3)
+
+with m1:
     st.metric("Daily Patient Volume", f"{daily_pts} Patients")
+    st.caption("Total scheduled encounters")
 
-with col2:
+with m2:
+    st.metric("Avg. Appt Duration", f"{avg_duration:.1f} min")
+    st.caption(f"Based on {grid_inc}m grid + buffers")
+
+with m3:
     if daily_pts >= 15.9:
-        st.success("Elite Tier (90th+ %)")
+        st.success("Elite (90th+ %)")
     elif daily_pts >= 13.6:
-        st.info("High Productivity (75th %)")
+        st.info("High Prod. (75th %)")
     elif daily_pts >= 11.4:
         st.warning("Median (50th %)")
     else:
         st.error("Below Median")
+    st.caption("SullivanCotter Ranking")
 
-st.caption("SullivanCotter Benchmarks: Median=11.4 | 75th=13.6 | 90th=15.9 (Encounters/Day)")
+st.info("**SullivanCotter Benchmarks (Hospital Optometry):** Median: 11.4 | 75th: 13.6 | 90th: 15.9")
+
+# Export Option
+csv = df_display.to_csv(index=False).encode('utf-8')
+st.download_button("Download Schedule (CSV)", csv, "clinical_schedule.csv", "text/csv")
