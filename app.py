@@ -212,7 +212,7 @@ with pg_col3:
 
 # --- QUALITY, CHARTING, AND LUNCH MATH ---
 st.divider()
-st.subheader("🛡️ Quality Operations & Session Liabilities")
+st.subheader("Quality Operations & Session Liabilities")
 
 # Calculating AM Session Specifics
 am_contact_required = (am_standards * 20.0) + (am_intact_comp * 20.0) + (am_ob_comp * 30.0)
