@@ -95,7 +95,7 @@ def process_session_display(session_slots, overbooks_left):
             remaining_buffer_space = max(0, item["Duration"] - 10)
             session_list.append({
                 "Start Time": item["Start Time"], 
-                "Type": "🚨 OVERBOOKED BLOCK (10m Focused Contact Injected)", 
+                "Type": "🚨 OVERBOOKED BLOCK (10m Focused Contact)", 
                 "Duration": f"10m Face-to-Face + {remaining_buffer_space}m unallocated buffer"
             })
             overbooks_left -= 1
@@ -128,7 +128,6 @@ with m1:
     st.metric("Total Daily Volume", f"{total_daily_encounters} Patients", delta=f"+{total_overbooks} Overbooks" if total_overbooks > 0 else None)
     st.caption(f"Standard Base: {total_standard_slots} | Intact Catch-up: {effective_functional_buffers} | Overbooks: {total_overbooks}")
 with m2:
-    # Rigid constraint math
     total_face_to_face_mins = (total_standard_slots * 20.0) + (total_catchup_slots * 20.0) + (total_overbooks * 10.0)
     st.metric("Total Contact Time", f"{total_face_to_face_mins:.0f} mins")
     st.caption("Pure face-to-face physician contact requirement")
@@ -143,7 +142,49 @@ with m3:
         st.error("Below National Median")
     st.caption("SullivanCotter Benchmark Rank")
 
-# --- FIXED SECTION: RIGID QUALITY, CHARTING, AND LUNCH MATH ---
+# --- REINSERTED SECTION: PRESS GANEY & NPS STRESS CONTEXT ---
+st.divider()
+st.subheader("Patient Loyalty & Experience Forecasting")
+
+effective_buffer_ratio = effective_functional_buffers / total_daily_encounters if total_daily_encounters > 0 else 0
+if effective_buffer_ratio >= 0.35:
+    expected_wait_time = 7  
+elif effective_buffer_ratio >= 0.25:
+    expected_wait_time = 14 
+elif effective_buffer_ratio >= 0.15:
+    expected_wait_time = 28 
+else:
+    expected_wait_time = min(90, 28 + (am_overbooks * 8) + (pm_overbooks * 14)) 
+
+base_pg_ltr = 89.2
+base_nps = 56.0
+
+if expected_wait_time <= 15:
+    pg_score = base_pg_ltr
+    nps_score = base_nps
+elif expected_wait_time <= 30:
+    pg_score = base_pg_ltr - ((expected_wait_time - 15) * 0.8)
+    nps_score = base_nps - ((expected_wait_time - 15) * 1.5)
+else:
+    pg_score = base_pg_ltr - 12 - ((expected_wait_time - 30) * 1.4)
+    nps_score = base_nps - 22.5 - ((expected_wait_time - 30) * 3.2) 
+
+pg_score = max(35.0, pg_score)
+nps_score = max(-100.0, nps_score)
+
+pg_col1, pg_col2, pg_col3 = st.columns(3)
+with pg_col1:
+    st.metric("Inferred Clinic Wait Time", f"{expected_wait_time} mins", 
+              delta=f"{expected_wait_time - 15} mins vs Baseline" if expected_wait_time != 15 else None, 
+              delta_color="inverse")
+with pg_col2:
+    st.metric("Press Ganey LTR Forecast", f"{pg_score:.1f}%")
+    st.caption("Predicted 'Likelihood to Recommend' Top-Box %")
+with pg_col3:
+    st.metric("Inferred Net Promoter Score (NPS)", f"{nps_score:.1f}")
+    st.caption("Brand Loyalty Index (-100 to +100)")
+
+# --- QUALITY, CHARTING, AND LUNCH MATH ---
 st.divider()
 st.subheader("Quality Operations & Session Liabilities")
 
@@ -207,3 +248,8 @@ with q_col3:
     else:
         st.metric("End-of-Day Overtime Drift", f"+{int(pm_overtime_drift)} mins", "Staff & Provider Burnout", delta_color="inverse")
     st.caption("Estimated clinic delay forced by unallocated afternoon documentation backlogs.")
+
+# Export Option
+csv = df_display.to_csv(index=False).encode('utf-8')
+st.sidebar.markdown("---")
+st.sidebar.download_button("📥 Export Audited Simulation to CSV", csv, "hospital_optometry_audited_sim.csv", "text/csv")
