@@ -5,7 +5,7 @@ import pandas as pd
 # Page Configuration
 st.set_page_config(page_title="Hospital Optometry Audit Planner", layout="wide")
 
-st.title("Hospital Optometry Session Template Optimzation & Risk Dashboard")
+st.title("🏥 Hospital Optometry Session Stress-Tester & Risk Dashboard")
 st.markdown("""
 This executive simulator evaluates the distinct operational impacts of **Morning vs. Afternoon 10-minute overbooking** 
 on clinic flow, mapping metrics directly to **SullivanCotter** throughput, **Press Ganey/NPS** satisfaction curves, and labor liabilities.
