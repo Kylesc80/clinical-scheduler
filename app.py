@@ -5,7 +5,7 @@ import pandas as pd
 # Page Configuration
 st.set_page_config(page_title="Hospital Optometry Rigidity Stress-Planner", layout="wide")
 
-st.title("🏥 Hospital Optometry Rigidity Stress-Tester & Risk Dashboard")
+st.title("Hospital Optometry Template Optimization & Risk Dashboard")
 st.markdown("""
 This simulator models template stress under strict operational constraints: **Standard/Complex exams require 20 minutes of 
 uninterrupted face-to-face contact time**, and **Overbooks require 10 minutes**. 
@@ -118,7 +118,7 @@ st.table(df_display)
 
 # --- METRICS & BENCHMARKING ---
 st.divider()
-st.subheader("📊 Operational & Productivity Analytics")
+st.subheader("Operational & Productivity Analytics")
 
 total_daily_encounters = total_standard_slots + total_catchup_slots + total_overbooks
 effective_functional_buffers = max(0, total_configured_buffers - total_overbooks)
@@ -145,7 +145,7 @@ with m3:
 
 # --- FIXED SECTION: RIGID QUALITY, CHARTING, AND LUNCH MATH ---
 st.divider()
-st.subheader("🛡️ Quality Operations & Session Liabilities")
+st.subheader("Quality Operations & Session Liabilities")
 
 # Calculating AM Session Specifics
 am_standard = sum(1 for x in am_schedule if x["Type"] == "🟢 Standard Exam")
@@ -194,7 +194,7 @@ with q_col1:
 
 with q_col2:
     if lunch_compression == 0:
-        st.success(f"🍱 Full Lunch Protected ({net_rest_lunch:.0f} mins remaining)")
+        st.success(f"Full Lunch Protected ({net_rest_lunch:.0f} mins remaining)")
     elif net_rest_lunch >= 30:
         st.warning(f"⚡ Lunch Compressed (Charity Charting: {lunch_compression:.0f}m | Rest: {net_rest_lunch:.0f}m)")
     else:
