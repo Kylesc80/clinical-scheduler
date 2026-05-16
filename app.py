@@ -101,7 +101,7 @@ def process_catchup_display(session_slots, overbooks_count):
         if item["Type"] == "🟠 Complex / Catch-up" and overbooks_left > 0:
             session_list.append({
                 "Start Time": item["Start Time"],
-                "Type": "🚨 PARTIALLY OCCUPIED CATCH-UP (Complex Exam + 10m Overbook)",
+                "Type": "🚨 Overbook (Complex Exam + 10m Overbook)",
                 "Duration": "30 min Contact Time | 10 min Catch-up Remainder"
             })
             overbooks_left -= 1
