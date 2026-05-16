@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 # Page Configuration
-st.set_page_config(page_title="Hospital Optometry Stress-Planner", layout="wide")
+st.set_page_config(page_title="Hospital Optometry Dual Stress-Planner", layout="wide")
 
-st.title("Hospital Optometry Template Optimization")
+st.title("Hospital Optometry Session Template Optimization & Risk Dashboard")
 st.markdown("""
-This advanced simulation dashboard models the systemic impact of **intentional overbooking** on clinic flow, 
-mapping operational thresholds directly to **SullivanCotter** productivity, **Press Ganey/NPS** decay curves, and documentation liabilities.
+This executive simulator evaluates the distinct operational impacts of **Morning vs. Afternoon overbooking** on clinic flow, 
+mapping metrics directly to **SullivanCotter** throughput, **Press Ganey/NPS** satisfaction curves, and labor liabilities.
 """)
 
 # --- SIDEBAR: SCHEDULING PARAMETERS ---
@@ -20,24 +20,34 @@ end_time = st.sidebar.time_input("Clinic End", value=datetime.strptime("17:00", 
 
 st.sidebar.header("2. Template Grid & Buffers")
 grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", [10, 15, 20, 30], index=2)
-am_buffers = st.sidebar.slider("Morning Buffers (Catch-up Slots)", 0, 5, 3)
-pm_buffers = st.sidebar.slider("Afternoon Buffers (Catch-up Slots)", 0, 5, 2)
+am_buffers = st.sidebar.slider("Morning Catch-up Slots (AM Buffers)", 0, 5, 3)
+pm_buffers = st.sidebar.slider("Afternoon Catch-up Slots (PM Buffers)", 0, 5, 2)
 
-# --- NEW: OVERBOOK SIMULATION CONTROLLER ---
-st.sidebar.header("3. Overbook Stress Test")
-total_configured_buffers = am_buffers + pm_buffers
+# --- UPDATED: SPLIT AM/PM OVERBOOK CONTROLLERS ---
+st.sidebar.header("3. Overbook Simulation (By Session)")
 
-if total_configured_buffers > 0:
-    overbook_count = st.sidebar.slider(
-        "Number of Overbooked Catch-up Slots", 
-        0, 
-        int(total_configured_buffers), 
-        0,
-        help="Converts designated recovery blocks into double-booked clinical slots (Post-ops / Problem-focused exams)."
+if am_buffers > 0:
+    am_overbooks = st.sidebar.slider(
+        "AM Overbooked Slots", 
+        0, int(am_buffers), 0,
+        help="Converts morning catch-up blocks into double-booked slots (Post-ops / Urgent exams)."
     )
 else:
-    overbook_count = 0
-    st.sidebar.warning("⚠️ No catch-up slots configured. Add buffers above to enable overbook testing.")
+    am_overbooks = 0
+    st.sidebar.warning("⚠️ No AM catch-up slots configured.")
+
+if pm_buffers > 0:
+    pm_overbooks = st.sidebar.slider(
+        "PM Overbooked Slots", 
+        0, int(pm_buffers), 0,
+        help="Converts afternoon catch-up blocks into double-booked slots (Post-ops / Urgent exams)."
+    )
+else:
+    pm_overbooks = 0
+    st.sidebar.warning("⚠️ No PM catch-up slots configured.")
+
+total_overbooks = am_overbooks + pm_overbooks
+total_configured_buffers = am_buffers + pm_buffers
 
 # --- HELPER FUNCTION: SESSION GENERATOR ---
 def generate_session_slots(session_start, session_end, buffer_limit, grid):
@@ -79,10 +89,7 @@ clinic_end_dt = datetime.combine(datetime.today(), end_time)
 am_schedule = generate_session_slots(clinic_start_dt, lunch_start_dt, am_buffers, grid_inc)
 pm_schedule = generate_session_slots(lunch_end_dt, clinic_end_dt, pm_buffers, grid_inc)
 
-# Process visual schedule layout with overbooks injected
-display_list = []
-overbooks_remaining = overbook_count
-
+# Process visual schedule layout with targeted overbooks injected
 def process_session_display(session_slots, overbooks_left):
     session_list = []
     for item in session_slots:
@@ -99,15 +106,15 @@ def process_session_display(session_slots, overbooks_left):
                 "Type": item["Type"], 
                 "Duration": f"{item['Duration']} min"
             })
-    return session_list, overbooks_left
+    return session_list
 
-am_display, overbooks_remaining = process_session_display(am_schedule, overbooks_remaining)
-pm_display, overbooks_remaining = process_session_display(pm_schedule, overbooks_remaining)
+am_display = process_session_display(am_schedule, am_overbooks)
+pm_display = process_session_display(pm_schedule, pm_overbooks)
 
 display_list = am_display + [{"Start Time": lunch_start_time.strftime("%I:%M %p"), "Type": "🍴 LUNCH BREAK", "Duration": f"{lunch_min} min"}] + pm_display
 
 # --- OUTPUT: SCHEDULE TEMPLATE ---
-st.subheader("Simulated Grid Template (With Injected Overbooks)")
+st.subheader("Simulated Grid Template (With Session-Specific Overbooks)")
 df_display = pd.DataFrame(display_list)
 st.table(df_display)
 
@@ -116,8 +123,8 @@ st.divider()
 st.subheader("📊 Operational & Productivity Analytics")
 
 base_patient_slots = len(am_schedule) + len(pm_schedule)
-total_daily_encounters = base_patient_slots + overbook_count
-effective_functional_buffers = max(0, total_configured_buffers - overbook_count)
+total_daily_encounters = base_patient_slots + total_overbooks
+effective_functional_buffers = max(0, total_configured_buffers - total_overbooks)
 
 if base_patient_slots > 0:
     total_base_mins = sum([x['Duration'] for x in am_schedule + pm_schedule])
@@ -130,12 +137,12 @@ with m1:
     st.metric(
         "Total Daily Volume", 
         f"{total_daily_encounters} Patients", 
-        delta=f"+{overbook_count} Overbooks" if overbook_count > 0 else None
+        delta=f"+{total_overbooks} Overbooks" if total_overbooks > 0 else None
     )
-    st.caption(f"Base Template: {base_patient_slots} | Overbooked: {overbook_count}")
+    st.caption(f"Base Template: {base_patient_slots} | AM Overbooks: {am_overbooks} | PM Overbooks: {pm_overbooks}")
 with m2:
     st.metric("Avg. Structural Space / Pt", f"{avg_duration:.1f} min")
-    st.caption("Decreases as more clinical entries compress the timeline")
+    st.caption("Available appointment footprint compressed by overbook density")
 with m3:
     if total_daily_encounters >= 15.9:
         st.success("Elite Tier (90th Percentile)")
@@ -146,8 +153,6 @@ with m3:
     else:
         st.error("Below National Median")
     st.caption("SullivanCotter Benchmark Rank")
-
-st.caption("**SullivanCotter Reference Framework (Hospital-Based Optometry):** Median: 11.4 | 75th: 13.6 | 90th: 15.9 encounters per day.")
 
 # --- PRESS GANEY & NPS STRESS CONTEXT ---
 st.divider()
@@ -163,8 +168,8 @@ elif effective_buffer_ratio >= 0.25:
 elif effective_buffer_ratio >= 0.15:
     expected_wait_time = 28 
 else:
-    # Overbooking recovery blocks triggers exponential systemic delay lines
-    expected_wait_time = min(75, 28 + (overbook_count * 12)) 
+    # Adding weighting to show that PM overbooks accumulate worse wait times by end of day
+    expected_wait_time = min(90, 28 + (am_overbooks * 10) + (pm_overbooks * 15)) 
 
 base_pg_ltr = 89.2
 base_nps = 56.0
@@ -185,7 +190,7 @@ nps_score = max(-100.0, nps_score)
 pg_col1, pg_col2, pg_col3 = st.columns(3)
 with pg_col1:
     st.metric("Inferred Clinic Wait Time", f"{expected_wait_time} mins", 
-              delta=f"{expected_wait_time - 15} mins vs Baseline Threshold" if expected_wait_time != 15 else None, 
+              delta=f"{expected_wait_time - 15} mins vs Baseline" if expected_wait_time != 15 else None, 
               delta_color="inverse")
 with pg_col2:
     st.metric("Press Ganey LTR Forecast", f"{pg_score:.1f}%")
@@ -196,43 +201,45 @@ with pg_col3:
 
 # --- CLINICAL QUALITY & ENTERPRISE RISK INFERENCES ---
 st.divider()
-st.subheader("🛡️ Clinical Quality & Provider Burnout Risk Assessment")
+st.subheader("🛡️ Quality Operations & Session Liabilities")
 
-# Calculate documentation breathing room accounting for the extra charts generated by overbooks
 remaining_buffer_mins = (effective_functional_buffers * (grid_inc * 2))
 allocated_chart_time_per_pt = remaining_buffer_mins / total_daily_encounters if total_daily_encounters > 0 else 0
 
 empathy_score = "High" if avg_duration >= 23.0 else ("Moderate" if avg_duration >= 18.0 else "Compromised")
-overtime_drift_mins = max(0, expected_wait_time - 10)
+
+# Inferences driven by session specifics: AM overbooks impact lunch latency, PM overbooks force staff overtime
+lunch_delay_risk = max(0, am_overbooks * 12)
+pm_overtime_drift = max(0, (pm_overbooks * 18) + (max(0, expected_wait_time - 15) if pm_overbooks > 0 else 0))
 
 q_col1, q_col2, q_col3 = st.columns(3)
 
 with q_col1:
     if allocated_chart_time_per_pt >= 8.0:
-        st.metric("Documentation Buffering", f"{allocated_chart_time_per_pt:.1f} min/pt", "Low Compliance Risk")
+        st.metric("Documentation Buffer space", f"{allocated_chart_time_per_pt:.1f} min/pt", "Low Compliance Risk")
     elif allocated_chart_time_per_pt >= 4.0:
-        st.metric("Documentation Buffering", f"{allocated_chart_time_per_pt:.1f} min/pt", "Elevated Charting Deficit", delta_color="off")
+        st.metric("Documentation Buffer space", f"{allocated_chart_time_per_pt:.1f} min/pt", "Elevated Charting Deficit", delta_color="off")
     else:
-        st.metric("Documentation Buffering", f"{allocated_chart_time_per_pt:.1f} min/pt", "High Audit/Coding Risk", delta_color="inverse")
-    st.caption("Target: ≥ 6 mins of template recovery time per patient to finish notes in-session.")
+        st.metric("Documentation Buffer space", f"{allocated_chart_time_per_pt:.1f} min/pt", "High Compliance/Audit Risk", delta_color="inverse")
+    st.caption("Net unallocated chart recovery room per patient file.")
 
 with q_col2:
-    if empathy_score == "High" and overbook_count == 0:
-        st.success("Patient-Centric Pace (High Empathy)")
-    elif empathy_score == "Moderate" or (overbook_count > 0 and overbook_count <= 2):
-        st.warning("Standard Pace (Rushed Documentation)")
+    if lunch_delay_risk == 0:
+        st.success("Protected Lunch Interval")
+    elif lunch_delay_risk <= 15:
+        st.warning(f"⚡ Lunch Delay: ~{lunch_delay_risk} mins")
     else:
-        st.error("Factory-Model Pace (Severe Burnout Risk)")
-    st.caption("Inferred Press Ganey 'Time Spent with Provider' rating tier.")
+        st.error(f"🚨 Severe Lunch Compression: ~{lunch_delay_risk} mins")
+    st.caption("Inferred morning template slip eating into provider/staff break window.")
 
 with q_col3:
-    if overtime_drift_mins <= 5:
-        st.metric("Predicted Clinic Overtime Drift", "None (< 5m)", "Optimal Clinic Close")
+    if pm_overtime_drift <= 5:
+        st.metric("End-of-Day Staff Overtime", "None (< 5m)", "Optimal Clinic Close")
     else:
-        st.metric("Predicted Clinic Overtime Drift", f"+{overtime_drift_mins} mins", "Staff Burnout Risk", delta_color="inverse")
-    st.caption("Estimated daily unbudgeted time clinic will run past close due to bottleneck math.")
+        st.metric("End-of-Day Staff Overtime", f"+{int(pm_overtime_drift)} mins", "Staff Burnout Risk", delta_color="inverse")
+    st.caption("Estimated afternoon clinical drift forcing unbudgeted hourly staff labor.")
 
 # Export Option
 csv = df_display.to_csv(index=False).encode('utf-8')
 st.sidebar.markdown("---")
-st.sidebar.download_button("📥 Export Current Simulation to CSV", csv, "hospital_optometry_simulation.csv", "text/csv")
+st.sidebar.download_button("📥 Export Current Simulation to CSV", csv, "hospital_optometry_session_sim.csv", "text/csv")
