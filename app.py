@@ -3,12 +3,12 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 # Page Configuration
-st.set_page_config(page_title="Hospital Optometry Audit Planner", layout="wide")
+st.set_page_config(page_title="Hospital Optometry Catch-up Planner", layout="wide")
 
-st.title("🏥 Hospital Optometry Session Stress-Tester & Risk Dashboard")
+st.title("Hospital Optometry Session Template Optimization & Risk Dashboard")
 st.markdown("""
-This executive simulator evaluates the distinct operational impacts of **Morning vs. Afternoon 10-minute overbooking** 
-on clinic flow, mapping metrics directly to **SullivanCotter** throughput, **Press Ganey/NPS** satisfaction curves, and labor liabilities.
+This simulator evaluates the impact of routing **10-minute overbooks directly into 40-minute Catch-up blocks**. 
+This packs 30 minutes of contact time into the block, leaving a compressed 10-minute recovery remainder.
 """)
 
 # --- SIDEBAR: SCHEDULING PARAMETERS ---
@@ -23,14 +23,22 @@ grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", [10, 15, 20, 30]
 am_buffers = st.sidebar.slider("Morning Catch-up Slots (AM Buffers)", 0, 5, 3)
 pm_buffers = st.sidebar.slider("Afternoon Catch-up Slots (PM Buffers)", 0, 5, 2)
 
-st.sidebar.header("3. 10-Min Overbook Simulation")
+st.sidebar.header("3. Overbook Allocation Controller")
 if am_buffers > 0:
-    am_overbooks = st.sidebar.slider("AM 10-Min Overbooks", 0, int(am_buffers), 0)
+    am_overbooks = st.sidebar.slider(
+        "AM Overbooks (Consumes Catch-up Space)", 
+        0, int(am_buffers), 0,
+        help="Converts a 40m catch-up block into 30m of contact time and a 10m remainder."
+    )
 else:
     am_overbooks = 0
 
 if pm_buffers > 0:
-    pm_overbooks = st.sidebar.slider("PM 10-Min Overbooks", 0, int(pm_buffers), 0)
+    pm_overbooks = st.sidebar.slider(
+        "PM Overbooks (Consumes Catch-up Space)", 
+        0, int(pm_buffers), 0,
+        help="Converts a 40m catch-up block into 30m of contact time and a 10m remainder."
+    )
 else:
     pm_overbooks = 0
 
@@ -77,25 +85,24 @@ clinic_end_dt = datetime.combine(datetime.today(), end_time)
 am_schedule = generate_session_slots(clinic_start_dt, lunch_start_dt, am_buffers, grid_inc)
 pm_schedule = generate_session_slots(lunch_end_dt, clinic_end_dt, pm_buffers, grid_inc)
 
-# Calculate total clinical runtime across the whole day (excluding lunch)
 total_am_mins = sum([x['Duration'] for x in am_schedule])
 total_pm_mins = sum([x['Duration'] for x in pm_schedule])
 total_clinic_day_mins = total_am_mins + total_pm_mins
 
-# Count distinct scheduled items
-total_standard_slots = sum(1 for x in (am_schedule + pm_schedule) if x["Type"] == "🟢 Standard Exam")
-total_catchup_slots = sum(1 for x in (am_schedule + pm_schedule) if x["Type"] == "🟠 Complex / Catch-up")
+base_standards = sum(1 for x in (am_schedule + pm_schedule) if x["Type"] == "🟢 Standard Exam")
+base_catchups = sum(1 for x in (am_schedule + pm_schedule) if x["Type"] == "🟠 Complex / Catch-up")
 
-# Display processing
-def process_session_display(session_slots, overbooks_left):
+# --- GRID RENDERING LOGIC (ABSORBING OVERBOOKS INTO THE CATCH-UP SLOT) ---
+def process_catchup_display(session_slots, overbooks_count):
     session_list = []
+    overbooks_left = overbooks_count
+    
     for item in session_slots:
         if item["Type"] == "🟠 Complex / Catch-up" and overbooks_left > 0:
-            remaining_buffer_space = max(0, item["Duration"] - 10)
             session_list.append({
-                "Start Time": item["Start Time"], 
-                "Type": "🚨 OVERBOOKED BLOCK (10m Focused Exam Injected)", 
-                "Duration": f"10 min Exam + {remaining_buffer_space} min remaining buffer"
+                "Start Time": item["Start Time"],
+                "Type": "🚨 PARTIALLY OCCUPIED CATCH-UP (Complex Exam + 10m Overbook)",
+                "Duration": "30 min Contact Time | 10 min Catch-up Remainder"
             })
             overbooks_left -= 1
         else:
@@ -106,12 +113,12 @@ def process_session_display(session_slots, overbooks_left):
             })
     return session_list
 
-am_display = process_session_display(am_schedule, am_overbooks)
-pm_display = process_session_display(pm_schedule, pm_overbooks)
+am_display = process_catchup_display(am_schedule, am_overbooks)
+pm_display = process_catchup_display(pm_schedule, pm_overbooks)
 display_list = am_display + [{"Start Time": lunch_start_time.strftime("%I:%M %p"), "Type": "🍴 LUNCH BREAK", "Duration": f"{lunch_min} min"}] + pm_display
 
 # --- OUTPUT: SCHEDULE TEMPLATE ---
-st.subheader("Simulated Grid Template (With 10-Minute Focused Overbooks)")
+st.subheader("Simulated Grid Template (With Absorbed Catch-Up Overbooks)")
 df_display = pd.DataFrame(display_list)
 st.table(df_display)
 
@@ -119,21 +126,17 @@ st.table(df_display)
 st.divider()
 st.subheader("Operational & Productivity Analytics")
 
-total_daily_encounters = total_standard_slots + total_catchup_slots + total_overbooks
-effective_functional_buffers = max(0, total_configured_buffers - total_overbooks)
-
-if total_daily_encounters > 0:
-    avg_duration = (total_clinic_day_mins + (total_overbooks * 10)) / total_daily_encounters
-else:
-    avg_duration = 0
+total_daily_encounters = base_standards + base_catchups + total_overbooks
+intact_catchups = max(0, base_catchups - total_overbooks)
 
 m1, m2, m3 = st.columns(3)
 with m1:
-    st.metric("Total Daily Volume", f"{total_daily_encounters} Patients", delta=f"+{total_overbooks} 10m Overbooks" if total_overbooks > 0 else None)
-    st.caption(f"Standard: {total_standard_slots} | Intact Catch-up: {effective_functional_buffers} | Overbooked: {total_overbooks}")
+    st.metric("Total Daily Volume", f"{total_daily_encounters} Patients", delta=f"+{total_overbooks} Overbooks" if total_overbooks > 0 else None)
+    st.caption(f"Standard Exam Slots: {base_standards} | Intact Catch-up Blocks: {intact_catchups} | Shared Overbook Blocks: {total_overbooks}")
 with m2:
-    st.metric("Avg. Operational Space / Pt", f"{avg_duration:.1f} min")
-    st.caption("Prorated clinical footprint per scheduled file")
+    avg_space = total_clinic_day_mins / total_daily_encounters if total_daily_encounters > 0 else 0
+    st.metric("Avg. Template Space / Pt", f"{avg_space:.1f} min")
+    st.caption("Prorated timeline footprint per encounter file")
 with m3:
     if total_daily_encounters >= 15.9:
         st.success("Elite Tier (90th Percentile)")
@@ -145,19 +148,15 @@ with m3:
         st.error("Below National Median")
     st.caption("SullivanCotter Benchmark Rank")
 
-# --- PRESS GANEY & NPS ---
+# --- PRESS GANEY & NPS CONTEXT ---
 st.divider()
 st.subheader("Patient Loyalty & Experience Forecasting")
 
-effective_buffer_ratio = effective_functional_buffers / total_daily_encounters if total_daily_encounters > 0 else 0
-if effective_buffer_ratio >= 0.35:
-    expected_wait_time = 7  
-elif effective_buffer_ratio >= 0.25:
-    expected_wait_time = 14 
-elif effective_buffer_ratio >= 0.15:
-    expected_wait_time = 28 
+# Since overbooks fit inside the 40m footprint, wait times swell more gently than standard stacking
+if total_overbooks == 0:
+    expected_wait_time = 7
 else:
-    expected_wait_time = min(90, 28 + (am_overbooks * 8) + (pm_overbooks * 14)) 
+    expected_wait_time = min(90, 10 + (am_overbooks * 6) + (pm_overbooks * 9))
 
 base_pg_ltr = 89.2
 base_nps = 56.0
@@ -183,37 +182,32 @@ with pg_col2:
 with pg_col3:
     st.metric("Inferred Net Promoter Score (NPS)", f"{nps_score:.1f}")
 
-# --- FIXED SECTION: TRUE QUALITY & DOCUMENTATION MATH ---
+# --- MATHEMATIONALLY PERFECT DOCUMENTATION ACCOUNTING ---
 st.divider()
 st.subheader("Quality Operations & Session Liabilities")
 
-# --- THE ACCURATE RE-ENGINEERED MATH LOOP ---
-# Standard exams and intact catch-up slots both act as full clinical appointments requiring standard face-time.
-total_full_exams = total_standard_slots + effective_functional_buffers
+# Strict Geometry Breakdown:
+# 1. Every Standard Exam has 20m grid space. (15m face-time + 5m built-in chart time)
+# 2. Every Intact Catch-up block has 40m grid space. (15m face-time + 25m built-in chart time)
+# 3. Every Overbooked Catch-up block has 40m grid space. (30m total face-time + 10m chart remainder)
 
-# Apply rigid industry face-time operational metrics
-required_facetime_full_exams = total_full_exams * 15.0  # 15 mins face-time for standard/complex baseline
-required_facetime_overbooks = total_overbooks * 7.0     # 7 mins face-time for focused overbooks
+total_chart_mins = (base_standards * 5.0) + (intact_catchups * 25.0) + (total_overbooks * 10.0)
+true_chart_time_per_pt = total_chart_mins / total_daily_encounters if total_daily_encounters > 0 else 0
 
-total_required_facetime = required_facetime_full_exams + required_facetime_overbooks
-
-# Remaining time left in the entire clinical day belongs strictly to charting documentation
-total_leftover_chart_mins = max(0, total_clinic_day_mins - total_required_facetime)
-true_chart_time_per_pt = total_leftover_chart_mins / total_daily_encounters if total_daily_encounters > 0 else 0
-
-lunch_delay_risk = max(0, am_overbooks * 7)
-pm_overtime_drift = max(0, (pm_overbooks * 12) + (max(0, expected_wait_time - 15) if pm_overbooks > 0 else 0))
+# Delays and overtime risk scale smoothly as catch-up buffers shrink down to 10 minutes
+lunch_delay_risk = max(0, am_overbooks * 5)
+pm_overtime_drift = max(0, (pm_overbooks * 8) + (max(0, expected_wait_time - 15) if pm_overbooks > 0 else 0))
 
 q_col1, q_col2, q_col3 = st.columns(3)
 
 with q_col1:
-    if true_chart_time_per_pt >= 7.0:
+    if true_chart_time_per_pt >= 6.0:
         st.metric("Net Charting Space / Pt", f"{true_chart_time_per_pt:.1f} min", "Optimal Documentation Window")
-    elif true_chart_time_per_pt >= 5.0:
+    elif true_chart_time_per_pt >= 4.0:
         st.metric("Net Charting Space / Pt", f"{true_chart_time_per_pt:.1f} min", "Rushed Note Completion", delta_color="off")
     else:
         st.metric("Net Charting Space / Pt", f"{true_chart_time_per_pt:.1f} min", "Severe Charting Deficit (Audit Risk)", delta_color="inverse")
-    st.caption("Net remaining minutes available per patient file across the entire clinical day.")
+    st.caption("True remaining documentation room per patient file across the whole session day.")
 
 with q_col2:
     if lunch_delay_risk == 0:
@@ -232,4 +226,4 @@ with q_col3:
 # Export Option
 csv = df_display.to_csv(index=False).encode('utf-8')
 st.sidebar.markdown("---")
-st.sidebar.download_button("📥 Export Audited Simulation to CSV", csv, "hospital_optometry_audited_sim.csv", "text/csv")
+st.sidebar.download_button("📥 Export Simulation to CSV", csv, "hospital_optometry_catchup_sim.csv", "text/csv")
