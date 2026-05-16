@@ -150,7 +150,7 @@ st.table(df_display)
 
 # --- METRICS & BENCHMARKING ---
 st.divider()
-st.subheader("📊 Operational & Productivity Analytics")
+st.subheader("Operational & Productivity Analytics")
 
 m1, m2, m3 = st.columns(3)
 with m1:
