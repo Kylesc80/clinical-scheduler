@@ -120,7 +120,7 @@ st.table(df_display)
 
 # --- METRICS & BENCHMARKING ---
 st.divider()
-st.subheader("📊 Operational & Productivity Analytics")
+st.subheader("Operational & Productivity Analytics")
 
 base_patient_slots = len(am_schedule) + len(pm_schedule)
 total_daily_encounters = base_patient_slots + total_overbooks
@@ -156,7 +156,7 @@ with m3:
 
 # --- PRESS GANEY & NPS STRESS CONTEXT ---
 st.divider()
-st.subheader("📈 Patient Loyalty & Experience Forecasting")
+st.subheader("Patient Loyalty & Experience Forecasting")
 
 # Recalculate operational wait time based on the REDUCED effective buffer ratio
 effective_buffer_ratio = effective_functional_buffers / total_daily_encounters if total_daily_encounters > 0 else 0
@@ -201,7 +201,7 @@ with pg_col3:
 
 # --- CLINICAL QUALITY & ENTERPRISE RISK INFERENCES ---
 st.divider()
-st.subheader("🛡️ Quality Operations & Session Liabilities")
+st.subheader("Quality Operations & Session Liabilities")
 
 remaining_buffer_mins = (effective_functional_buffers * (grid_inc * 2))
 allocated_chart_time_per_pt = remaining_buffer_mins / total_daily_encounters if total_daily_encounters > 0 else 0
