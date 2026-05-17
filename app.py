@@ -257,7 +257,7 @@ with q_col2:
     if lunch_compression == 0:
         st.success(f"Full Lunch Protected ({net_rest_lunch:.0f} mins remaining)")
     elif net_rest_lunch >= 30:
-        st.warning(f"⚡ Lunch Compressed (Charity Charting: {lunch_compression:.0f}m | Rest: {net_rest_lunch:.0f}m)")
+        st.warning(f"⚡ Lunch Compressed (Uncompensated Charting: {lunch_compression:.0f}m | Rest: {net_rest_lunch:.0f}m)")
     else:
         st.error(f"🚨 Lunch Lost (Rest: {net_rest_lunch:.0f}m | Forced Charting: {lunch_compression:.0f}m)")
     st.caption("Minutes of the lunch window absorbed by morning documentation requirements.")
