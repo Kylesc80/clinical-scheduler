@@ -221,7 +221,7 @@ global_chart_space = (metrics["chart_mins"] / metrics["patients"]) if metrics["p
 overbook_saturation = (metrics["act_overbooks"] / metrics["poss_overbooks"]) if metrics["poss_overbooks"] > 0 else 0
 
 st.divider()
-st.subheader("🩺 Clinical Quality & Downstream Outcomes Inference")
+st.subheader("Clinical Quality & Downstream Outcomes Inference")
 q_col1, q_col2, q_col3 = st.columns(3)
 
 with q_col1:
