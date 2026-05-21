@@ -12,7 +12,7 @@ CLINICAL_ASSUMPTIONS = {
 
 st.set_page_config(page_title="Hospital Optometry Capacity & Quality Planner", layout="wide")
 
-st.title("🏥 Hospital Optometry Capacity Planner & Quality Inference Engine")
+st.title("Hospital Optometry Template Optimization & Quality Inference Engine")
 st.markdown("""
 This strategic planning dashboard models administrative capacities, **downstream clinical quality outcomes**, and **patient experience (Press Ganey/NPS) forecasts**. 
 Configure your calendar to evaluate capacity limits, quality spoilage, and brand perception risks.
@@ -92,7 +92,7 @@ def process_session_metrics(base_template: list, overbooks: int, is_am: bool, se
     return pts, contact, leftover, lunch_lost, overtime
 
 # --- SIDEBAR: SYSTEM TIMING & BENCHMARKS ---
-st.sidebar.header("⚙️ 1. Session Times & Core Parameters")
+st.sidebar.header("1. Session Times & Core Parameters")
 
 # Dynamic Time Inputs
 am_start_str = st.sidebar.text_input("AM Session Start (HH:MM 24h)", "08:00")
@@ -121,7 +121,7 @@ am_template_mins = (lunch_start_time - start_time).total_seconds() / 60
 pm_template_mins = (end_time - lunch_end_time).total_seconds() / 60
 
 # --- SIDEBAR: 7-DAY CALENDAR MATRIX ---
-st.sidebar.header("📅 2. Seven-Day Clinic Calendar")
+st.sidebar.header("2. Seven-Day Clinic Calendar")
 days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 weekly_config = {}
 
@@ -143,7 +143,7 @@ for day in days_of_week:
         weekly_config[day] = {"type": session_type, "am_overbooks": am_ob, "pm_overbooks": pm_ob}
 
 # --- MAIN UI: BASELINE SCHEDULE TEMPLATES ---
-st.subheader("📋 Baseline Daily Schedule Template Grids")
+st.subheader("Baseline Daily Schedule Template Grids")
 st.markdown("This represents your structural capacity *before* dynamic overbooks are injected. Complex/Catch-up slots act as shock absorbers.")
 col_t1, col_t2 = st.columns(2)
 with col_t1:
@@ -200,10 +200,10 @@ implied_fte = metrics["sessions"] / 5.0
 
 # --- OUTPUT: 7-DAY MATRIX & BENCHMARKS ---
 st.divider()
-st.subheader(f"📅 Integrated Weekly Schedule Blueprint ({implied_fte:.2f} FTE)")
+st.subheader(f"Integrated Weekly Schedule Blueprint ({implied_fte:.2f} FTE)")
 st.table(pd.DataFrame(weekly_summary_data))
 
-st.subheader("📊 Weekly Aggregated Analytics & Benchmark Matching")
+st.subheader("Weekly Aggregated Analytics & Benchmark Matching")
 m1, m2, m3 = st.columns(3)
 m1.metric("Total Weekly Patient Volume", f"{metrics['patients']} Patients")
 m2.metric("Weekly Face-to-Face Contact", f"{int(metrics['contact_mins'])} mins", f"Eqv. {metrics['contact_mins']/60:.1f} hrs")
@@ -228,31 +228,31 @@ with q_col1:
     if global_chart_space >= 6.0: stat, col, txt = "Baseline (Low)", "success", "Adequate exam cycle permits holistic diagnosis."
     elif global_chart_space >= 3.0: stat, col, txt = "Elevated (+14% Risk)", "warning", "Squeezing complex cases increases secondary complaint deferral."
     else: stat, col, txt = "Critical (+29% Risk)", "danger", "High probability of unresolved complaints causing spillover demand."
-    st.markdown(f"### 🔁 Repeat Visit Propensity\n**Status:** :{col}[{stat}]")
+    st.markdown(f"### Repeat Visit Propensity\n**Status:** :{col}[{stat}]")
     st.info(txt)
 
 with q_col2:
     if overbook_saturation <= 0.15: stat, col, txt = "Optimized", "success", "Ample buffers secure timely pathology tracking."
     elif overbook_saturation <= 0.50: stat, col, txt = "Compromised Continuity", "warning", "Rigid schedule pushes high-risk tracking past clinical targets."
     else: stat, col, txt = "Severe Continuity Spoilage", "danger", "Immediate access for active medical issues blocked."
-    st.markdown(f"### 🎯 Priority Follow-Up Spoilage\n**Status:** :{col}[{stat}]")
+    st.markdown(f"### Priority Follow-Up Spoilage\n**Status:** :{col}[{stat}]")
     st.info(txt)
 
 with q_col3:
     if global_chart_space >= 5.5: stat, col, txt = "Safe Boundary", "success", "Sufficient space lowers errors in lab reviews/tracking."
     elif global_chart_space >= 3.0: stat, col, txt = "Moderate Fatigue", "warning", "Forced documentation gaps increase distractions."
     else: stat, col, txt = "High-Risk Diagnostic Fatigue", "danger", "Late-day EHR batching correlates with increased diagnostic errors."
-    st.markdown(f"### 🗂️ EHR Diagnostic Error Risk\n**Status:** :{col}[{stat}]")
+    st.markdown(f"### EHR Diagnostic Error Risk\n**Status:** :{col}[{stat}]")
     st.info(txt)
 
 # --- INFERENCES: PATIENT EXPERIENCE (Press Ganey & NPS) ---
 st.divider()
-st.subheader("⭐ Patient Experience & Brand Perception (Press Ganey & NPS)")
+st.subheader("Patient Experience & Brand Perception (Press Ganey & NPS)")
 st.markdown("Wait times and perceived provider rushing are the dominant drivers of ambulatory patient satisfaction scores.")
 
 p_col1, p_col2 = st.columns(2)
 with p_col1:
-    st.markdown("### 📋 Press Ganey: 'Time Spent with Provider'")
+    st.markdown("### Press Ganey: 'Time Spent with Provider'")
     if global_chart_space >= 5.5 and overbook_saturation <= 0.25:
         st.success("**Forecast: Top Decile (90th+ Percentile)**\n\nHigh probability of 5/5 scores. Unrushed template allows for conversational space and comprehensive clinical explanations.")
     elif global_chart_space >= 3.0:
@@ -261,7 +261,7 @@ with p_col1:
         st.error("**Forecast: Bottom Quartile Risk (< 25th Percentile)**\n\nSevere charting deficits force the provider to truncate visits. High risk of 'rushed' or 'didn't listen' comments in free-text surveys.")
 
 with p_col2:
-    st.markdown("### 📊 Net Promoter Score (NPS): 'Likelihood to Recommend'")
+    st.markdown("###Net Promoter Score (NPS): 'Likelihood to Recommend'")
     if overbook_saturation <= 0.20:
         st.success("**Forecast: Promoter Heavy (NPS 65 - 80+)**\n\nOn-time starts and minimal lobby waits drive strong word-of-mouth recommendations.")
     elif overbook_saturation <= 0.60:
@@ -271,7 +271,7 @@ with p_col2:
 
 # --- ADMINISTRATIVE LIABILITIES ---
 st.divider()
-st.subheader("🛡️ Core Operational Liabilities Summary")
+st.subheader("Core Operational Liabilities Summary")
 o1, o2, o3 = st.columns(3)
 with o1:
     if global_chart_space >= 6.0: st.metric("Net Weekly Charting Space", f"{global_chart_space:.1f} min/pt", "Sustainable")
