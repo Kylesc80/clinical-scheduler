@@ -12,7 +12,7 @@ CLINICAL_ASSUMPTIONS = {
 
 st.set_page_config(page_title="Hospital Optometry Capacity & Quality Planner", layout="wide")
 
-st.title(" Hospital Optometry Template Optimization & Quality Inference Engine")
+st.title("Hospital Optometry Capacity Planner & Quality Inference Engine")
 st.markdown("""
 This strategic planning dashboard models administrative capacities, **downstream clinical quality outcomes**, and **patient experience (Press Ganey/NPS) forecasts**. 
 Configure your calendar to evaluate capacity limits, quality spoilage, and brand perception risks.
@@ -71,16 +71,13 @@ def process_session_metrics(base_template: list, overbooks: int, is_am: bool, se
     st_count, ic_count, oc_count = analyze_session(base_template, overbooks)
     
     pts_scheduled = st_count + ic_count + (oc_count * 2)
-    # Factor in no-shows to find actual patients seen
     pts_seen = pts_scheduled * (1.0 - (no_show_pct / 100.0))
     
-    # Calculate baseline contact time, then reduce by no-show rate
     base_contact = (st_count * CLINICAL_ASSUMPTIONS["std_contact_min"]) + \
                    (ic_count * CLINICAL_ASSUMPTIONS["std_contact_min"]) + \
                    (oc_count * CLINICAL_ASSUMPTIONS["overbook_contact_min"])
     actual_contact = base_contact * (1.0 - (no_show_pct / 100.0))
               
-    # No-shows hand back face-to-face time, creating more administrative breathing room
     leftover = max(0, template_mins - actual_contact)
     deficit = max(0, (pts_seen * CLINICAL_ASSUMPTIONS["req_chart_min_per_pt"]) - leftover)
     
@@ -100,7 +97,6 @@ def process_session_metrics(base_template: list, overbooks: int, is_am: bool, se
 # --- SIDEBAR: SYSTEM TIMING & BENCHMARKS ---
 st.sidebar.header(" 1. Session Times & Core Parameters")
 
-# Dynamic Time Inputs
 am_start_str = st.sidebar.text_input("AM Session Start (HH:MM 24h)", "08:00")
 am_end_str = st.sidebar.text_input("AM Session End / Lunch (HH:MM 24h)", "12:00")
 pm_start_str = st.sidebar.text_input("PM Session Start (HH:MM 24h)", "13:00")
@@ -118,11 +114,9 @@ except ValueError:
 grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", [10, 15, 20, 30], index=2)
 am_buffers_per_session = st.sidebar.slider("AM Catch-up Slots (per session)", 0, 5, 3)
 pm_buffers_per_session = st.sidebar.slider("PM Catch-up Slots (per session)", 0, 5, 2)
+no_show_rate = st.sidebar.slider("Clinic No-Show Rate (%)", 0, 40, 12)
 
-# Global No-Show Rate Adjustment
-no_show_rate = st.sidebar.slider("Clinic No-Show Rate (%)", 0, 40, 12, help="Percentage of scheduled patients who fail to arrive. Reduces face-to-face contact hours and dynamically recalibrates administrative charting buffers.")
-
-# Base templates generated for display and math
+# Base templates generated
 am_base_template = generate_session_slots(start_time, lunch_start_time, am_buffers_per_session, grid_inc)
 pm_base_template = generate_session_slots(lunch_end_time, end_time, pm_buffers_per_session, grid_inc)
 
@@ -152,7 +146,7 @@ for day in days_of_week:
         weekly_config[day] = {"type": session_type, "am_overbooks": am_ob, "pm_overbooks": pm_ob}
 
 # --- MAIN UI: BASELINE SCHEDULE TEMPLATES ---
-st.subheader(" Baseline Daily Schedule Template Grids")
+st.subheader("📋 Baseline Daily Schedule Template Grids")
 st.markdown("This represents your structural capacity *before* dynamic overbooks are injected. Complex/Catch-up slots act as shock absorbers.")
 col_t1, col_t2 = st.columns(2)
 with col_t1:
@@ -161,6 +155,65 @@ with col_t1:
 with col_t2:
     st.markdown("**PM Session Template**")
     st.dataframe(pd.DataFrame(pm_base_template), use_container_width=True, hide_index=True)
+
+# --- NEW MODULE: LATE ARRIVAL DECISION SUPPORT ---
+st.divider()
+st.subheader("⏱️ Front-Desk Decision Support: Late Arrival Tolerances")
+st.markdown("""
+Assuming a maximum of **one late arrival per session**, this card calculates how many minutes a late patient can be safely accommodated 
+before the delay breaches your template's operational safety parameters and compromises downstream patient satisfaction scores.
+""")
+
+# Calculate the dynamic tolerance boundaries based on AM/PM settings
+def calculate_late_tolerance(base_template, overbooks, mins_total, no_show_pct):
+    st_c, ic_c, oc_c = analyze_session(base_template, overbooks)
+    pts_sched = st_c + ic_c + (oc_c * 2)
+    pts_seen = pts_sched * (1.0 - (no_show_pct / 100.0))
+    
+    contact = ((st_c + ic_c) * CLINICAL_ASSUMPTIONS["std_contact_min"]) + (oc_c * CLINICAL_ASSUMPTIONS["overbook_contact_min"])
+    actual_contact = contact * (1.0 - (no_show_pct / 100.0))
+    
+    # Intact buffers give us dynamic cushion space
+    intact_buffers = ic_c
+    
+    # Find leftover slack time in the template
+    slack = mins_total - (actual_contact + (pts_seen * CLINICAL_ASSUMPTIONS["req_chart_min_per_pt"]))
+    
+    # Safe limit: Determined by baseline grid increment + structural slack + intact buffer padding
+    permissible_mins = max(0.0, (grid_inc * 0.5) + (slack / max(1.0, pts_seen)) + (intact_buffers * 3.0))
+    
+    # Penalty adjustments for high overbooking saturation
+    possible_buffers = len([x for x in base_template if x["Type"] == "🟠 Complex / Catch-up"])
+    ob_sat = overbooks / possible_buffers if possible_buffers > 0 else 1.0
+    
+    if ob_sat >= 0.6:
+        permissible_mins *= 0.4  # Drastically truncate late policy if template is highly congested
+    elif ob_sat >= 0.3:
+        permissible_mins *= 0.7
+        
+    return min(20, int(permissible_mins)) # Cap max reasonable late window at 20 mins
+
+am_late_limit = calculate_late_tolerance(am_base_template, weekly_config["Monday"]["am_overbooks"], am_template_mins, no_show_rate)
+pm_late_limit = calculate_late_tolerance(pm_base_template, weekly_config["Monday"]["pm_overbooks"], pm_template_mins, no_show_rate)
+
+lat1, lat2 = st.columns(2)
+with lat1:
+    st.markdown("### Morning Session Allowance")
+    if am_late_limit >= 12:
+        st.success(f"**Permissible Grace Period: {am_late_limit} Minutes**\n\n**Policy Action:** Greenlight check-in. The current AM template has enough physical structural buffers to absorb this delay without causing cascading patient delays or dropping Press Ganey scores.")
+    elif am_late_limit >= 7:
+        st.warning(f"**Permissible Grace Period: {am_late_limit} Minutes**\n\n**Policy Action:** Conditional check-in. Overbook congestion is moderate. Checking this patient in will push subsequent room entries back by 10-15 minutes, moving NPS into the 'Passive' territory.")
+    else:
+        st.error(f"**Permissible Grace Period: {am_late_limit} Minutes**\n\n**Policy Action:** Strict Cutoff / Reschedule Required.\n\nThe template is too tightly packed. Accommodating this late arrival will instantly create a downstream line bottleneck, wiping out provider charting space and guaranteeing bottom-quartile patient experience scores.")
+
+with lat2:
+    st.markdown("### Afternoon Session Allowance")
+    if pm_late_limit >= 12:
+        st.success(f"**Permissible Grace Period: {pm_late_limit} Minutes**\n\n**Policy Action:** Greenlight check-in. PM slack space is robust enough to process this patient smoothly.")
+    elif pm_late_limit >= 7:
+        st.warning(f"**Permissible Grace Period: {pm_late_limit} Minutes**\n\n**Policy Action:** Conditional check-in. Moderate risk of pushing staff beyond standard clinic departure times.")
+    else:
+        st.error(f"**Permissible Grace Period: {pm_late_limit} Minutes**\n\n**Policy Action:** Strict Cutoff / Reschedule Required.\n\nGrid saturation is critical. Checking this patient in directly forces late-day charting batching and immediate end-of-day staff overtime drift.")
 
 # --- WEEKLY AGGREGATION LOOP ---
 weekly_summary_data = []
@@ -196,7 +249,7 @@ for day, config in weekly_config.items():
         pts_seen, pts_sched, contact, chart, lunch, over = process_session_metrics(
             pm_base_template, config["pm_overbooks"], False, config["type"], pm_template_mins, no_show_rate
         )
-        d_seen += pts_seen; d_sched += pts_sched; d_contact += contact; d_chart += chart; d_overtime += over
+        d_seen += pts_seen; d_sched += pts_sched; d_contact += contact; d_chart += chart; d_lunch += lunch; d_overtime += over
 
     avg_chart_space = (d_chart / d_seen) if d_seen > 0 else 0
     weekly_summary_data.append({
@@ -216,10 +269,10 @@ implied_fte = metrics["sessions"] / 5.0
 
 # --- OUTPUT: 7-DAY MATRIX & BENCHMARKS ---
 st.divider()
-st.subheader(f" Integrated Weekly Schedule Blueprint ({implied_fte:.2f} FTE)")
+st.subheader(f"📅 Integrated Weekly Schedule Blueprint ({implied_fte:.2f} FTE)")
 st.table(pd.DataFrame(weekly_summary_data))
 
-st.subheader("Weekly Aggregated Analytics & Benchmark Matching")
+st.subheader("📊 Weekly Aggregated Analytics & Benchmark Matching")
 m1, m2, m3 = st.columns(3)
 m1.metric("Weekly Encounter Volume", f"{metrics['patients_seen']:.1f} Seen", f"{metrics['patients_sched']} Scheduled")
 m2.metric("Weekly Face-to-Face Contact", f"{int(metrics['contact_mins'])} mins", f"Eqv. {metrics['contact_mins']/60:.1f} hrs")
@@ -237,33 +290,33 @@ global_chart_space = (metrics["chart_mins"] / metrics["patients_seen"]) if metri
 overbook_saturation = (metrics["act_overbooks"] / metrics["poss_overbooks"]) if metrics["poss_overbooks"] > 0 else 0
 
 st.divider()
-st.subheader(" Clinical Quality & Downstream Outcomes Inference")
+st.subheader("🩺 Clinical Quality & Downstream Outcomes Inference")
 q_col1, q_col2, q_col3 = st.columns(3)
 
 with q_col1:
     if global_chart_space >= 6.0: stat, col, txt = "Baseline (Low)", "success", "Adequate exam cycle permits holistic diagnosis."
     elif global_chart_space >= 3.0: stat, col, txt = "Elevated (+14% Risk)", "warning", "Squeezing complex cases increases secondary complaint deferral."
     else: stat, col, txt = "Critical (+29% Risk)", "danger", "High probability of unresolved complaints causing spillover demand."
-    st.markdown(f"### Repeat Visit Propensity\n**Status:** :{col}[{stat}]")
+    st.markdown(f"### 🔁 Repeat Visit Propensity\n**Status:** :{col}[{stat}]")
     st.info(txt)
 
 with q_col2:
     if overbook_saturation <= 0.15: stat, col, txt = "Optimized", "success", "Ample buffers secure timely pathology tracking."
     elif overbook_saturation <= 0.50: stat, col, txt = "Compromised Continuity", "warning", "Rigid schedule pushes high-risk tracking past clinical targets."
     else: stat, col, txt = "Severe Continuity Spoilage", "danger", "Immediate access for active medical issues blocked."
-    st.markdown(f"### Priority Follow-Up Spoilage\n**Status:** :{col}[{stat}]")
+    st.markdown(f"### 🎯 Priority Follow-Up Spoilage\n**Status:** :{col}[{stat}]")
     st.info(txt)
 
 with q_col3:
     if global_chart_space >= 5.5: stat, col, txt = "Safe Boundary", "success", "Sufficient space lowers errors in lab reviews/tracking."
     elif global_chart_space >= 3.0: stat, col, txt = "Moderate Fatigue", "warning", "Forced documentation gaps increase distractions."
     else: stat, col, txt = "High-Risk Diagnostic Fatigue", "danger", "Late-day EHR batching correlates with increased diagnostic errors."
-    st.markdown(f"### EHR Diagnostic Error Risk\n**Status:** :{col}[{stat}]")
+    st.markdown(f"### 🗂️ EHR Diagnostic Error Risk\n**Status:** :{col}[{stat}]")
     st.info(txt)
 
 # --- INFERENCES: PATIENT EXPERIENCE (Press Ganey & NPS) ---
 st.divider()
-st.subheader("Patient Experience & Brand Perception (Press Ganey & NPS)")
+st.subheader(" Patient Experience & Brand Perception (Press Ganey & NPS)")
 st.markdown("Wait times and perceived provider rushing are the dominant drivers of ambulatory patient satisfaction scores.")
 
 p_col1, p_col2 = st.columns(2)
@@ -287,7 +340,7 @@ with p_col2:
 
 # --- ADMINISTRATIVE LIABILITIES ---
 st.divider()
-st.subheader("🛡️ Core Operational Liabilities Summary")
+st.subheader(" Core Operational Liabilities Summary")
 o1, o2, o3 = st.columns(3)
 with o1:
     if global_chart_space >= 6.0: st.metric("Net Weekly Charting Space", f"{global_chart_space:.1f} min/pt", "Sustainable")
