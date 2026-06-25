@@ -88,6 +88,27 @@ def process_session_metrics(base_template: list, overbooks: int, is_am: bool, se
         
     return pts_seen, pts_scheduled, actual_contact, leftover, lunch_lost, overtime
 
+def render_risk_gauge(label, risk_pct, status_text, color_hex, description):
+    """Renders a sleek, professional CSS horizontal gauge dashboard card."""
+    html_content = f"""
+    <div style="border: 1px solid #e2e8f0; padding: 20px; border-radius: 10px; background-color: #ffffff; box-shadow: 0px 2px 4px rgba(0,0,0,0.02); height: 100%;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <span style="font-weight: 600; font-size: 1.05rem; color: #1e293b;">{label}</span>
+            <span style="font-weight: 700; color: {color_hex}; background-color: {color_hex}15; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; text-transform: uppercase;">{status_text}</span>
+        </div>
+        <div style="position: relative; height: 12px; background: linear-gradient(to right, #10b981 0%, #f59e0b 50%, #ef4444 100%); border-radius: 6px; margin: 20px 0 25px 0;">
+            <div style="position: absolute; left: calc({risk_pct}% - 5px); top: -6px; width: 10px; height: 24px; background-color: #0f172a; border-radius: 2px; border: 2px solid #ffffff; box-shadow: 0px 1px 4px rgba(0,0,0,0.25);"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #94a3b8; font-weight: 500; margin-top: -18px; margin-bottom: 15px;">
+            <span>LOW RISK</span>
+            <span>MODERATE</span>
+            <span>CRITICAL</span>
+        </div>
+        <p style="font-size: 0.88rem; color: #475569; line-height: 1.45; margin: 0;">{description}</p>
+    </div>
+    """
+    st.markdown(html_content, unsafe_allow_html=True)
+
 # --- SIDEBAR: SYSTEM TIMING & BENCHMARKS ---
 st.sidebar.header("1. Session Times & Core Parameters")
 
@@ -304,28 +325,42 @@ with lat2:
     elif pm_late_limit >= 7: st.warning(f"**Permissible Grace Period: {pm_late_limit} Minutes**")
     else: st.error(f"**Permissible Grace Period: {pm_late_limit} Minutes**")
 
-# --- INFERENCES: CLINICAL QUALITY & REPUTATION FORECASTS ---
+# --- INFERENCES: CLINICAL QUALITY & REPUTATION FORECASTS WITH NEEDLE GAUGES ---
 st.divider()
 st.subheader("Downstream Quality & Relational Implications")
+st.markdown("Relative risk modeling mapping grid parameters to Press Ganey satisfaction signals, long-term diagnostic risks, and scheduling logic.")
+
 q_col1, q_col2, q_col3 = st.columns(3)
 
 with q_col1:
-    if global_chart_space >= 6.0: stat, col, txt = "Baseline (Low)", "success", "Adequate exam cycle permits holistic diagnosis."
-    elif global_chart_space >= 3.0: stat, col, txt = "Elevated (+14% Risk)", "warning", "Squeezing complex cases increases secondary complaint deferral."
-    else: stat, col, txt = "Critical (+29% Risk)", "danger", "High probability of unresolved complaints causing spillover demand."
-    st.markdown(f"### Repeat Visit Propensity\n**Status:** :{col}[{stat}]")
-    st.info(txt)
+    # Repeat Visit Propensity (Driven by available charting room buffer time)
+    if global_chart_space >= 6.0:
+        stat, col, pct, txt = "Low Risk (Optimal)", "#10b981", 15, "Adequate exam cycle length permits comprehensive, holistic diagnosis. Strong correlation to Press Ganey Likelihood to Recommend markers."
+    elif global_chart_space >= 3.0:
+        stat, col, pct, txt = "Elevated (+14% Risk)", "#f59e0b", 55, "Squeezing complex work patterns increases secondary complaint deferral. Patient perception of feeling rushed impacts retention."
+    else:
+        stat, col, pct, txt = "Critical (+29% Risk)", "#ef4444", 88, "High probability of unresolved patient issues causing structural spillover demand. Severe negative correlation to institutional NPS targets."
+    
+    render_risk_gauge("Repeat Visit Propensity", pct, stat, col, txt)
 
 with q_col2:
-    if overbook_saturation <= 0.15: stat, col, txt = "Optimized", "success", "Ample buffers secure timely pathology tracking."
-    elif overbook_saturation <= 0.50: stat, col, txt = "Compromised Continuity", "warning", "Rigid schedule pushes high-risk tracking past clinical targets."
-    else: stat, col, txt = "Severe Continuity Spoilage", "danger", "Immediate access for active medical issues blocked."
-    st.markdown(f"### Priority Follow-Up Spoilage\n**Status:** :{col}[{stat}]")
-    st.info(txt)
+    # Priority Follow-Up Spoilage (Driven by overbook buffer exhaustion rate)
+    if overbook_saturation <= 0.15:
+        stat, col, pct, txt = "Low Risk (Optimized)", "#10b981", 10, "Ample administrative templates secure highly stable pathology tracking pipelines without delaying established diagnostic workflows."
+    elif overbook_saturation <= 0.50:
+        stat, col, pct, txt = "Compromised Continuity", "#f59e0b", 48, "Rigid schedule boundaries push specialized medical tracking past clear clinical targets, increasing patient scheduling latency."
+    else:
+        stat, col, pct, txt = "Severe Spoilage", "#ef4444", 92, "Immediate access for complex, high-acuity active medical issues is structurally blocked. Referral pipelines are forced to choose competing regional options."
+        
+    render_risk_gauge("Priority Follow-Up Spoilage", pct, stat, col, txt)
 
 with q_col3:
-    if global_chart_space >= 5.5: stat, col, txt = "Safe Boundary", "success", "Sufficient space lowers errors in lab reviews/tracking."
-    elif global_chart_space >= 3.0: stat, col, txt = "Moderate Fatigue", "warning", "Forced documentation gaps increase distractions."
-    else: stat, col, txt = "High-Risk Diagnostic Fatigue", "danger", "Late-day EHR batching correlates with increased diagnostic errors."
-    st.markdown(f"### EHR Diagnostic Error Risk\n**Status:** :{col}[{stat}]")
-    st.info(txt)
+    # EHR Diagnostic Error Risk (Driven by available documentation room blocks)
+    if global_chart_space >= 5.5:
+        stat, col, pct, txt = "Low Risk (Safe)", "#10b981", 12, "Sufficient charting leeway limits typical errors during manual lab chart routing and structural prescription metric transfers."
+    elif global_chart_space >= 3.0:
+        stat, col, pct, txt = "Moderate Fatigue", "#f59e0b", 52, "Forced documentation gaps increase multi-tasking and cognitive distractions during technical data entry steps."
+    else:
+        stat, col, pct, txt = "High-Risk Diagnostic Fatigue", "#ef4444", 90, "Late-day EHR batch charting processes correlate explicitly with elevated risk indexes regarding data omissions and structural verification misses."
+        
+    render_risk_gauge("EHR Diagnostic Error Risk", pct, stat, col, txt)
