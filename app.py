@@ -243,8 +243,9 @@ def run_financial_simulation(initial_d, weekly_cap, current_nps, elasticity, rev
         demand_change = current_demand * (elasticity * nps_signal)
         next_demand = max(10, current_demand + demand_change)
         
+        # CHANGED: 'Week' parameter is mapped as an integer to force linear x-axis rendering
         history.append({
-            "Week": f"Wk {week}",
+            "Week": week,
             "Market Demand": round(current_demand, 1),
             "Cumulative Revenue Lost ($)": round(cumulative_loss, 0),
             "Predicted NPS": round(week_nps, 1)
@@ -333,7 +334,6 @@ st.markdown("Relative risk modeling mapping grid parameters to Press Ganey satis
 q_col1, q_col2, q_col3 = st.columns(3)
 
 with q_col1:
-    # Repeat Visit Propensity (Driven by available charting room buffer time)
     if global_chart_space >= 6.0:
         stat, col, pct, txt = "Low Risk (Optimal)", "#10b981", 15, "Adequate exam cycle length permits comprehensive, holistic diagnosis. Strong correlation to Press Ganey Likelihood to Recommend markers."
     elif global_chart_space >= 3.0:
@@ -344,7 +344,6 @@ with q_col1:
     render_risk_gauge("Repeat Visit Propensity", pct, stat, col, txt)
 
 with q_col2:
-    # Priority Follow-Up Spoilage (Driven by overbook buffer exhaustion rate)
     if overbook_saturation <= 0.15:
         stat, col, pct, txt = "Low Risk (Optimized)", "#10b981", 10, "Ample administrative templates secure highly stable pathology tracking pipelines without delaying established diagnostic workflows."
     elif overbook_saturation <= 0.50:
@@ -355,7 +354,6 @@ with q_col2:
     render_risk_gauge("Priority Follow-Up Spoilage", pct, stat, col, txt)
 
 with q_col3:
-    # EHR Diagnostic Error Risk (Driven by available documentation room blocks)
     if global_chart_space >= 5.5:
         stat, col, pct, txt = "Low Risk (Safe)", "#10b981", 12, "Sufficient charting leeway limits typical errors during manual lab chart routing and structural prescription metric transfers."
     elif global_chart_space >= 3.0:
