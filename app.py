@@ -19,6 +19,81 @@ This advanced operational dashboard models administrative capacities, late arriv
 12-Week System Dynamics Simulator to project how schedule saturation actively erodes long-term patient market demand via word-of-mouth feedback.
 """)
 
+# --- OPTIMIZATION ENGINE STATE INITIALIZATION ---
+# Using session state to allow optimization buttons to programmatically override sidebar parameters
+if "grid_inc_val" not in st.session_state:
+    st.session_state.grid_inc_val = 20
+if "am_buffers_val" not in st.session_state:
+    st.session_state.am_buffers_val = 3
+if "pm_buffers_val" not in st.session_state:
+    st.session_state.pm_buffers_val = 2
+if "am_ob_val" not in st.session_state:
+    st.session_state.am_ob_val = 2
+if "pm_ob_val" not in st.session_state:
+    st.session_state.pm_ob_val = 1
+
+# --- ONE-CLICK OPTIMIZATION SUITE ---
+st.write("---")
+st.header("Operational Optimization Suite")
+st.markdown("Select an optimization strategy below to automatically adjust template parameters based on clinical operations research modeling.")
+
+opt_col1, opt_col2, opt_col3, opt_col4, opt_col5, opt_col6 = st.columns(6)
+
+with opt_col1:
+    if st.button("🚀 Max Press Ganey / NPS", use_container_width=True, help="Eliminates wait times and perceived rushing by expanding time blocks."):
+        st.session_state.grid_inc_val = 30
+        st.session_state.am_buffers_val = 4
+        st.session_state.pm_buffers_val = 4
+        st.session_state.am_ob_val = 0
+        st.session_state.pm_ob_val = 0
+        st.success("Optimized for NPS!")
+
+with opt_col2:
+    if st.button("⏳ Min Wait Time to Appt", use_container_width=True, help="Maximizes slot availability to reduce panel backlog and booking delays."):
+        st.session_state.grid_inc_val = 15
+        st.session_state.am_buffers_val = 1
+        st.session_state.pm_buffers_val = 1
+        st.session_state.am_ob_val = 1
+        st.session_state.pm_ob_val = 1
+        st.success("Optimized for Access!")
+
+with opt_col3:
+    if st.button("🧠 Min Provider Burnout", use_container_width=True, help="Maximizes embedded buffer blocks to eliminate pajama-time charting."):
+        st.session_state.grid_inc_val = 30
+        st.session_state.am_buffers_val = 5
+        st.session_state.pm_buffers_val = 4
+        st.session_state.am_ob_val = 0
+        st.session_state.pm_ob_val = 0
+        st.success("Optimized for Longevity!")
+
+with opt_col4:
+    if st.button("🎯 Max Quality Metrics", use_container_width=True, help="Schedules structured blocks tailored for complex medical tracking loops."):
+        st.session_state.grid_inc_val = 20
+        st.session_state.am_buffers_val = 3
+        st.session_state.pm_buffers_val = 3
+        st.session_state.am_ob_val = 1
+        st.session_state.pm_ob_val = 1
+        st.success("Optimized for Quality!")
+
+with opt_col5:
+    if st.button("💼 Max Financial Returns", use_container_width=True, help="Maximizes patient volume up to the safety margin to capture downstream capture."):
+        st.session_state.grid_inc_val = 15
+        st.session_state.am_buffers_val = 2
+        st.session_state.pm_buffers_val = 2
+        st.session_state.am_ob_val = 2
+        st.session_state.pm_ob_val = 2
+        st.success("Optimized for Revenue!")
+
+with opt_col6:
+    if st.button("⚖️ Create Balanced Template", use_container_width=True, help="The ideal efficiency frontier compromising across all dimensions."):
+        st.session_state.grid_inc_val = 20
+        st.session_state.am_buffers_val = 3
+        st.session_state.pm_buffers_val = 2
+        st.session_state.am_ob_val = 2
+        st.session_state.pm_ob_val = 1
+        st.success("Balanced Grid Deployed!")
+
+
 # --- ENGINE: CORE TRACKING FUNCTIONS ---
 def generate_session_slots(session_start: datetime, session_end: datetime, buffer_limit: int, grid: int) -> list:
     session_data = []
@@ -109,6 +184,7 @@ def render_risk_gauge(label, risk_pct, status_text, color_hex, description):
     """
     st.markdown(html_content, unsafe_allow_html=True)
 
+
 # --- SIDEBAR: SYSTEM TIMING & BENCHMARKS ---
 st.sidebar.header("1. Session Times & Core Parameters")
 
@@ -126,9 +202,19 @@ except ValueError:
     st.sidebar.error("Please use HH:MM 24-hour format.")
     st.stop()
 
-grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", [10, 15, 20, 30], index=2)
-am_buffers_per_session = st.sidebar.slider("AM Catch-up Slots", 0, 5, 3)
-pm_buffers_per_session = st.sidebar.slider("PM Catch-up Slots", 0, 5, 2)
+# Link the sidebar components directly to the reactive session state values
+grid_options = [10, 15, 20, 30]
+grid_index = grid_options.index(st.session_state.grid_inc_val) if st.session_state.grid_inc_val in grid_options else 2
+
+grid_inc = st.sidebar.selectbox("System Grid Increment (mins)", grid_options, index=grid_index, key="grid_inc_widget")
+st.session_state.grid_inc_val = grid_inc
+
+am_buffers_per_session = st.sidebar.slider("AM Catch-up Slots", 0, 5, int(st.session_state.am_buffers_val), key="am_buf_widget")
+st.session_state.am_buffers_val = am_buffers_per_session
+
+pm_buffers_per_session = st.sidebar.slider("PM Catch-up Slots", 0, 5, int(st.session_state.pm_buffers_val), key="pm_buf_widget")
+st.session_state.pm_buffers_val = pm_buffers_per_session
+
 no_show_rate = st.sidebar.slider("Clinic No-Show Rate (%)", 0, 40, 12)
 
 # --- SIDEBAR: SIMULATION ENGINE PARAMETERS ---
@@ -148,13 +234,13 @@ if has_optical:
     rev_per_encounter = st.sidebar.slider(
         "Global Revenue / Visit ($)", 
         min_value=100, max_value=450, value=225, step=25,
-        help="Combined value of exam billings, professional fees, and total downstream retail optical material capture (frames, lenses, contact lenses)."
+        help="Combined value of exam billings, professional fees, and total downstream retail optical material capture."
     )
 else:
     rev_per_encounter = st.sidebar.slider(
         "Professional Fee Revenue / Visit ($)", 
         min_value=40, max_value=250, value=115, step=5,
-        help="Professional clinical revenue and insurance reimbursement only. Excludes hardware product sales."
+        help="Professional clinical revenue and insurance reimbursement only."
     )
 
 # --- SIDEBAR: 7-DAY CALENDAR MATRIX ---
@@ -166,15 +252,24 @@ for day in days_of_week:
     with st.sidebar.expander(day, expanded=(day in days_of_week[:5])):
         session_type = st.radio(f"Layout ({day})", ["Full Day", "Morning Only", "Afternoon Only", "Day Off"], key=f"lay_{day}")
         am_ob, pm_ob = 0, 0
-        if session_type in ["Full Day", "Morning Only"] and am_buffers_per_session > 0:
-            am_ob = st.slider("AM Overbooks", 0, int(am_buffers_per_session), 3, key=f"am_ob_{day}")
-        if session_type in ["Full Day", "Afternoon Only"] and pm_buffers_per_session > 0:
-            pm_ob = st.slider("PM Overbooks", 0, int(pm_buffers_per_session), 2, key=f"pm_ob_{day}")
+        
+        # Determine current bounds safely based on programmatic state overrides
+        max_am_ob = int(st.session_state.am_buffers_val)
+        max_pm_ob = int(st.session_state.pm_buffers_val)
+        
+        default_am_ob = min(int(st.session_state.am_ob_val), max_am_ob)
+        default_pm_ob = min(int(st.session_state.pm_ob_val), max_pm_ob)
+        
+        if session_type in ["Full Day", "Morning Only"] and max_am_ob > 0:
+            am_ob = st.slider("AM Overbooks", 0, max_am_ob, default_am_ob, key=f"am_ob_{day}")
+        if session_type in ["Full Day", "Afternoon Only"] and max_pm_ob > 0:
+            pm_ob = st.slider("PM Overbooks", 0, max_pm_ob, default_pm_ob, key=f"pm_ob_{day}")
+            
         weekly_config[day] = {"type": session_type, "am_overbooks": am_ob, "pm_overbooks": pm_ob}
 
 # Base templates generated
-am_base_template = generate_session_slots(start_time, lunch_start_time, am_buffers_per_session, grid_inc)
-pm_base_template = generate_session_slots(lunch_end_time, end_time, pm_buffers_per_session, grid_inc)
+am_base_template = generate_session_slots(start_time, lunch_start_time, st.session_state.am_buffers_val, st.session_state.grid_inc_val)
+pm_base_template = generate_session_slots(lunch_end_time, end_time, st.session_state.pm_buffers_val, st.session_state.grid_inc_val)
 am_template_mins = (lunch_start_time - start_time).total_seconds() / 60
 pm_template_mins = (end_time - lunch_end_time).total_seconds() / 60
 
@@ -184,11 +279,11 @@ metrics = {"patients_seen": 0.0, "patients_sched": 0, "contact_mins": 0.0, "char
 for day, config in weekly_config.items():
     if config["type"] == "Day Off": continue
     if config["type"] in ["Full Day", "Morning Only"]:
-        metrics["sessions"] += 0.5; metrics["poss_overbooks"] += am_buffers_per_session; metrics["act_overbooks"] += config["am_overbooks"]
+        metrics["sessions"] += 0.5; metrics["poss_overbooks"] += st.session_state.am_buffers_val; metrics["act_overbooks"] += config["am_overbooks"]
         pts_seen, pts_sched, contact, chart, lunch, over = process_session_metrics(am_base_template, config["am_overbooks"], True, config["type"], am_template_mins, no_show_rate)
         metrics["patients_seen"] += pts_seen; metrics["patients_sched"] += pts_sched; metrics["contact_mins"] += contact; metrics["chart_mins"] += chart; metrics["lunch_lost"] += lunch; metrics["overtime"] += over
     if config["type"] in ["Full Day", "Afternoon Only"]:
-        metrics["sessions"] += 0.5; metrics["poss_overbooks"] += pm_buffers_per_session; metrics["act_overbooks"] += config["pm_overbooks"]
+        metrics["sessions"] += 0.5; metrics["poss_overbooks"] += st.session_state.pm_buffers_val; metrics["act_overbooks"] += config["pm_overbooks"]
         pts_seen, pts_sched, contact, chart, lunch, over = process_session_metrics(pm_base_template, config["pm_overbooks"], False, config["type"], pm_template_mins, no_show_rate)
         metrics["patients_seen"] += pts_seen; metrics["patients_sched"] += pts_sched; metrics["contact_mins"] += contact; metrics["chart_mins"] += chart; metrics["lunch_lost"] += lunch; metrics["overtime"] += over
 
@@ -201,7 +296,6 @@ elif overbook_saturation <= 0.50: baseline_nps = 45
 else: baseline_nps = 12
 
 # --- DISPLAY SCHEDULE GRID MATRIX ---
-st.divider()
 st.subheader("Daily Schedule Template Layout")
 st.markdown("Visual representation of the selected base grid configuration before daily overbooks are applied.")
 
@@ -243,7 +337,6 @@ def run_financial_simulation(initial_d, weekly_cap, current_nps, elasticity, rev
         demand_change = current_demand * (elasticity * nps_signal)
         next_demand = max(10, current_demand + demand_change)
         
-        # CHANGED: 'Week' parameter is mapped as an integer to force linear x-axis rendering
         history.append({
             "Week": week,
             "Market Demand": round(current_demand, 1),
@@ -260,10 +353,6 @@ sim_df = run_financial_simulation(init_demand, metrics["patients_sched"], baseli
 st.divider()
 site_profile_label = "Retail-Integrated Clinic Profile" if has_optical else "Professional/Clinical-Only Profile"
 st.subheader(f"12-Week Financial Overlay & Brand Spoilage Projections ({site_profile_label})")
-st.markdown("""
-This data charts the economic balancing loop. If the clinic run rate causes systemic satisfaction drops, the resulting local 
-brand friction results in measurable, lost revenue over the fiscal quarter.
-""")
 
 f_col1, f_col2, f_col3 = st.columns(3)
 start_d = sim_df.iloc[0]["Market Demand"]
@@ -286,12 +375,6 @@ with c2:
     st.markdown("**Cumulative Financial Leaking due to Patient Attrition ($)**")
     st.line_chart(sim_df.set_index("Week")[["Cumulative Revenue Lost ($)"]], color="#00CC96")
 
-if total_cash_bled > 0:
-    revenue_context = "retail pipeline bleed and downstream hardware attrition" if has_optical else "clinical volume drop and raw insurance reimbursement losses"
-    st.error(f"🚨 **Financial Scarcity Warning:** Over-indexing on overbooks decreases gridlock delays today but costs this location **${total_cash_bled:,.0f}** in aggregate quarterly revenue due to {revenue_context}.")
-else:
-    st.success("✅ **Revenue Preservation Secured:** Patient satisfaction boundaries remain structurally sound. The practice preserves its referral pipelines and risks zero reputational revenue attrition.")
-
 # --- MODULE: LATE ARRIVAL DECISION SUPPORT ---
 st.divider()
 st.subheader("Front-Desk Decision Support: Late Arrival Tolerances")
@@ -304,7 +387,7 @@ def calculate_late_tolerance(base_template, overbooks, mins_total, no_show_pct):
     actual_contact = contact * (1.0 - (no_show_pct / 100.0))
     intact_buffers = ic_c
     slack = mins_total - (actual_contact + (pts_seen * CLINICAL_ASSUMPTIONS["req_chart_min_per_pt"]))
-    permissible_mins = max(0.0, (grid_inc * 0.5) + (slack / max(1.0, pts_seen)) + (intact_buffers * 3.0))
+    permissible_mins = max(0.0, (st.session_state.grid_inc_val * 0.5) + (slack / max(1.0, pts_seen)) + (intact_buffers * 3.0))
     possible_buffers = len([x for x in base_template if x["Type"] == "🟠 Complex / Catch-up"])
     ob_sat = overbooks / possible_buffers if possible_buffers > 0 else 1.0
     if ob_sat >= 0.6: permissible_mins *= 0.4  
